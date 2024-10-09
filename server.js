@@ -7,7 +7,7 @@ const cors = require('cors')
 
 const app = express();
 const port = 5000; // Replace with your desired port
-const MainRepo = '/depotcec/digit'
+const MainRepo = 'depotcec/digit'
 
 
 
@@ -87,7 +87,7 @@ app.get('/download/:filename', (req, res)=>{
 
 //read .csv log sync file 
 app.get('/sync/logs', (req, res) => {
-  const filePath = '/sync/log.txt'; // Replace with the actual file path
+  const filePath = 'sync/log.txt'; // Replace with the actual file path
 
   fs.readFile(filePath, 'utf8', (err, data) => {
     if (err) {
