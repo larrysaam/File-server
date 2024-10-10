@@ -82,7 +82,7 @@ app.get('/download/:filename', (req, res)=>{
 
 //read .csv log sync file 
 app.get('/sync/logs', (req, res) => {
-  const filePath = 'C:/Users/LARRIEN/Desktop/File server/sync/log.txt'; // Replace with the actual file path
+  const filePath = 'sync/log.txt'; // Replace with the actual file path
 
   fs.readFile(filePath, 'utf8', (err, data) => {
     if (err) {
