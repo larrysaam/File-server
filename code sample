@@ -1,0 +1,61 @@
+
+//fetching file names for (actes & declaration)
+router.get('/all/:id', async (req, res) => {
+  const [dir, period] = req.params.id.split('-')
+
+  const actesPath = `${process.env.FOLDER_PATH}/${dir}/actes`; // Replace with the actual path
+  const declaPath = `${process.env.FOLDER_PATH}/${dir}/declarations`;
+
+  
+
+  try{
+
+  const mainFolder = process.env.SOURCE_FOLDER; // Replace with your actual path
+
+  const codes = await fs.promises.readdir(mainFolder);
+  const subdirs = ['actes', 'declarations']
+  const allFiles = { actes:[], declarations:[]}
+
+  const results = await Promise.all(
+    subdirs.map(async(subdir)=>{
+      codes.map(async(code)=>{
+
+        try {
+          const files = await fs.promises.readdir(`${mainFolder}/${code}/${process.env.SUB_SOURCE_FOLDER}/${dir}/${subdir}`)
+  
+          console.log("all files : ", files)
+
+          // Filter files by timeframe
+          const filteredFiles = files.filter((file) => {
+            let formattedFile = help.reformatFilename(file);
+            const creationDate = moment(formattedFile.slice(-12, -4), 'YYYYMMDD');
+            return help.filterByTimeframe(period, creationDate);
+          });
+
+          console.log("filtered files : ", filteredFiles)
+  
+          if(subdir === 'actes'){
+            allFiles.actes.push(filteredFiles)
+          }
+          else if(subdir === 'declarations'){
+            allFiles.declarations.push(filteredFiles)
+          }
+          
+        } catch (error) {
+          
+        }
+      })
+    })
+  )
+
+  console.log('res : ',allFiles)
+  res.json(allFiles)
+ 
+
+
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to get file names' });
+  }
+});
