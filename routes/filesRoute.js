@@ -15,34 +15,43 @@ router.get('/all/:id', async (req, res) => {
 
   try{
   
-  const subdirs = ['actes', 'declarations']
+  const subdirs = (dir === 'mariages')? ['actes', 'publications'] :['actes', 'declarations']
   const allFiles = { actes:[], declarations:[]}
 
   const results = await Promise.all(
     subdirs.map(async(subdir)=>{
-      const codes = await fs.promises.readdir(process.env.SOURCE_FOLDER);
+      let codes = await fs.promises.readdir(process.env.SOURCE_FOLDER);
+      codes = codes.filter(item => item !== 'digit');
 
       await Promise.all(
         codes.map(async(code)=>{
 
           try {
             const files = await fs.promises.readdir(`${process.env.SOURCE_FOLDER}/${code}/${process.env.SUB_SOURCE_FOLDER}/${dir}/${subdir}`)
-    
-            console.log("all files : ", files)
+  
 
             // Filter files by timeframe
             const filteredFiles = files.filter((file) => {
+
               let formattedFile = help.reformatFilename(file);
               const creationDate = moment(formattedFile.slice(-12, -4), 'YYYYMMDD');
-              return help.filterByTimeframe(period, creationDate);
-            });
 
-            console.log("filtered files : ", filteredFiles)
+              var valid = help.isNumeric(period)
+              if(valid === false){
+                return help.filterByTimeframe(period, creationDate);
+              }else{
+                var formatedDate = formattedFile.slice(-12, -4)
+                return (formatedDate === period)? true : false
+                
+              }
+              
+            });
     
+            //here publications and declarations counts as thesame variable
             if(subdir === 'actes'){
               allFiles.actes.push(...filteredFiles)
             }
-            else if(subdir === 'declarations'){
+            else if(subdir === 'declarations' || subdir === 'publications'){
               allFiles.declarations.push(...filteredFiles)
             }
             
@@ -54,7 +63,6 @@ router.get('/all/:id', async (req, res) => {
     })
   )
 
-  console.log('res : ',allFiles)
   res.json([allFiles])
  
   } catch (error) {
@@ -63,45 +71,6 @@ router.get('/all/:id', async (req, res) => {
   }
 });
 
-
-
-// //fetching file names for (actes & declaration)
-// router.get('/all/:id', async (req, res) => {
-//   const dir = req.params.id
-
-//   const actesPath = `${process.env.FOLDER_PATH}/${dir}/actes`; // Replace with the actual path
-//   const declaPath = `${process.env.FOLDER_PATH}/${dir}/declarations`;
-  
-
-//   try {
-//     const paths = [actesPath, declaPath];
-//     const fileNames = { actes: [], declarations: [] };
-
-//     const results = await Promise.all(
-//       paths.map(async (path) => {
-//         try {
-//           const files = await fs.promises.readdir(path);
-//           const filenames = files.map((file) => file.replace(/\.txt$/, '')); // Remove '.txt' extension if applicable
-//           return { path, filenames }; // Return object with path and filenames for better organization
-//         } catch (err) {
-//           console.error('Error reading directory:', err);
-//           throw err; // Re-throw error for handling in main catch block
-//         }
-//       })
-//     );
-
-//     const combinedFiles = results.reduce((acc, curr) => {
-//       acc[curr.path.split('/').pop()] = curr.filenames; // Extract directory name and assign filenames
-//       return acc;
-//     }, {});
-
-//     res.status(200).json([combinedFiles]);
-
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ error: 'Failed to get file names' });
-//   }
-// });
 
 
 //download .csv files from their directory
@@ -113,8 +82,7 @@ router.get('/download/:filename', (req, res)=>{
 
     const code = filename.split('_')[0]
   
-  
-    
+
     res.download(`${process.env.SOURCE_FOLDER}/${code}/${process.env.SUB_SOURCE_FOLDER}/${dir}/${subdir}/${filename}`,
     (err)=>{
       if(err){
@@ -132,23 +100,36 @@ router.get('/download/:filename', (req, res)=>{
 router.get('/year/rows/count/all/:id', async(req, res)=>{
   const [subdir, period] = req.params.id.split('-');
 
+  
+
   try {
-    const dir = ['naissances', 'deces'];
+    const dir = ['naissances', 'deces', 'mariages'];
     let naissance = []
     let deces = []
-    let M1= []
-    let M2 = [] ,M3= [], M4= [],M5= [],M6= [], M7= [],M8= [],M9= [], M10= [],M11= [], M12 = [];
-    let M1T = 0, M2T = 0, M3T = 0, M4T = 0, M5T = 0, M6T = 0, M7T = 0, M8T = 0, M9T = 0, M10T = 0, M11T = 0, M12T = 0;
-
+    let mariages = []
+   
 
     const results = await Promise.all(
       dir.map(async (directory) => {
-        const codes = await fs.promises.readdir(process.env.SOURCE_FOLDER);
+  
+        let M1= []
+        let M2 = [] ,M3= [], M4= [],M5= [],M6= [], M7= [],M8= [],M9= [], M10= [],M11= [], M12 = [];
+        let M1T = 0, M2T = 0, M3T = 0, M4T = 0, M5T = 0, M6T = 0, M7T = 0, M8T = 0, M9T = 0, M10T = 0, M11T = 0, M12T = 0;
+
+        let codes = await fs.promises.readdir(process.env.SOURCE_FOLDER);
+        codes = codes.filter(item => item !== 'digit');
 
         await Promise.all(
           codes.map(async(code)=>{
             // Read directory contents 
-            const files = await fs.promises.readdir(`${process.env.SOURCE_FOLDER}/${code}/${process.env.SUB_SOURCE_FOLDER}/${directory}/${subdir}`);
+            /***
+              * if directory === 'mariages' and sudir === 'declarations', 
+              * change subdir to "Publication" which is a subdir of mariage folder.
+            **/
+            const files = (directory === 'mariages' && subdir === 'declarations')?
+            await fs.promises.readdir(`${process.env.SOURCE_FOLDER}/${code}/${process.env.SUB_SOURCE_FOLDER}/${directory}/publications`):
+            await fs.promises.readdir(`${process.env.SOURCE_FOLDER}/${code}/${process.env.SUB_SOURCE_FOLDER}/${directory}/${subdir}`)
+
 
             // Filter files by timeframe
             const filteredMonthFiles = files.filter((file) => {
@@ -162,13 +143,12 @@ router.get('/year/rows/count/all/:id', async(req, res)=>{
             const matchingFiles = filteredMonthFiles.filter((file) => file.startsWith(code));
 
 
-            console.log("files ", matchingFiles)
+            console.log("yearly all - matchingFiles ", matchingFiles)
 
             // Filter and group files
             matchingFiles.forEach((file) => {
               let formattedFile = help.reformatFilename(file);
               let weekNumber = help.getMonthNumber(formattedFile);
-              console.log("month number _ ", weekNumber)
               if (weekNumber === "01") {
                 M1.push(file);
               } else if (weekNumber === "02") {
@@ -181,14 +161,12 @@ router.get('/year/rows/count/all/:id', async(req, res)=>{
                 M5.push(file);
               } else if (weekNumber === "06") {
                 M6.push(file);
-                console.log('M6' )
               } else if (weekNumber === "07") {
                 M7.push(file);
               }else if (weekNumber === "08") {
                 M8.push(file);
               } else if (weekNumber === "09") {
                 M9.push(file);
-                console.log('M9 ' )
               } else if (weekNumber === "10") {
                 M10.push(file);
               }else if (weekNumber === "11") {
@@ -199,9 +177,6 @@ router.get('/year/rows/count/all/:id', async(req, res)=>{
             });
 
 
-            console.log('Ms ', M9, M8 )
-
-
             // Count rows in each CSV file
             const countRows = async(files) => {
 
@@ -209,7 +184,13 @@ router.get('/year/rows/count/all/:id', async(req, res)=>{
 
               await Promise.all(files.map(async (file) => {
                 console.log('file ', file)
-                const filePath = `${process.env.SOURCE_FOLDER}/${code}/${process.env.SUB_SOURCE_FOLDER}/${directory}/${subdir}/${file}`
+                 /***
+                  * if directory === 'mariages' and sudir === 'declarations', 
+                  * change subdir to "Publication" which is a subdir of mariage folder.
+                **/
+                const filePath = (directory === 'mariages' && subdir === 'declarations')?
+                `${process.env.SOURCE_FOLDER}/${code}/${process.env.SUB_SOURCE_FOLDER}/${directory}/publications/${file}`:
+                `${process.env.SOURCE_FOLDER}/${code}/${process.env.SUB_SOURCE_FOLDER}/${directory}/${subdir}/${file}`
                 console.log('filePath ', filePath)
         
                 try {
@@ -271,7 +252,9 @@ router.get('/year/rows/count/all/:id', async(req, res)=>{
         }else if(directory === 'deces'){
           deces = [ M1T, M2T, M3T, M4T, M5T, M6T, M7T, M8T, M9T, M10T, M11T, M12T]
           console.log('deces ', deces)
-
+        }else if(directory === 'mariages'){
+          mariages = [ M1T, M2T, M3T, M4T, M5T, M6T, M7T, M8T, M9T, M10T, M11T, M12T]
+          console.log('mariages ', mariages)
         }
       })
     );
@@ -279,7 +262,8 @@ router.get('/year/rows/count/all/:id', async(req, res)=>{
     // Send response
     res.json({
       naissance,
-      deces
+      deces,
+      mariages
     }
     );
   } catch (error) {
@@ -295,19 +279,29 @@ router.get('/year/rows/count/:id', async(req, res)=>{
   const [subdir, centername, period] = req.params.id.split('-');
 
   try {
-    const dir = ['naissances', 'deces'];
+
+    const dir = ['naissances', 'deces', 'mariages'];
     let naissance = []
     let deces = []
-    let M1= []
-    let M2 = [] ,M3= [], M4= [],M5= [],M6= [], M7= [],M8= [],M9= [], M10= [],M11= [], M12 = [];
-    let M1T = 0, M2T = 0, M3T = 0, M4T = 0, M5T = 0, M6T = 0, M7T = 0, M8T = 0, M9T = 0, M10T = 0, M11T = 0, M12T = 0;
-
+    let mariages = []
 
     const results = await Promise.all(
       dir.map(async (directory) => {
+
+        // console.log("----year---- ", directory, " __ ", centername, " __ ", period )
+
+        let M1= []
+        let M2 = [] ,M3= [], M4= [],M5= [],M6= [], M7= [],M8= [],M9= [], M10= [],M11= [], M12 = [];
+        let M1T = 0, M2T = 0, M3T = 0, M4T = 0, M5T = 0, M6T = 0, M7T = 0, M8T = 0, M9T = 0, M10T = 0, M11T = 0, M12T = 0;
+    
         // Read directory contents 
-        
-        const files = await fs.promises.readdir(`${process.env.SOURCE_FOLDER}/${centername}/${process.env.SUB_SOURCE_FOLDER}/${directory}/${subdir}`);
+         /***
+          * if directory === 'mariages' and sudir === 'declarations', 
+          * change subdir to "Publication" which is a subdir of mariage folder.
+          **/
+        const files = (directory === 'mariages' && subdir === 'declarations')?
+          await fs.promises.readdir(`${process.env.SOURCE_FOLDER}/${centername}/${process.env.SUB_SOURCE_FOLDER}/${directory}/publications`):
+          await fs.promises.readdir(`${process.env.SOURCE_FOLDER}/${centername}/${process.env.SUB_SOURCE_FOLDER}/${directory}/${subdir}`)
 
         // Filter files by timeframe
         const filteredMonthFiles = files.filter((file) => {
@@ -320,13 +314,12 @@ router.get('/year/rows/count/:id', async(req, res)=>{
         const matchingFiles = filteredMonthFiles.filter((file) => file.startsWith(centername));
 
 
-        console.log("files ", matchingFiles)
+        // console.log("yearly - matchingfiles ", matchingFiles)
 
         // Filter and group files
         matchingFiles.forEach((file) => {
           let formattedFile = help.reformatFilename(file);
           let weekNumber = help.getMonthNumber(formattedFile);
-          console.log("month number _ ", weekNumber)
           if (weekNumber === "01") {
             M1.push(file);
           } else if (weekNumber === "02") {
@@ -339,14 +332,12 @@ router.get('/year/rows/count/:id', async(req, res)=>{
             M5.push(file);
           } else if (weekNumber === "06") {
             M6.push(file);
-            console.log('M6' )
           } else if (weekNumber === "07") {
             M7.push(file);
           }else if (weekNumber === "08") {
             M8.push(file);
           } else if (weekNumber === "09") {
             M9.push(file);
-            console.log('M9 ' )
           } else if (weekNumber === "10") {
             M10.push(file);
           }else if (weekNumber === "11") {
@@ -356,9 +347,6 @@ router.get('/year/rows/count/:id', async(req, res)=>{
           }
         });
 
-
-        console.log('Ms ', M9, M8 )
-
         
         // Count rows in each CSV file
         const countRows = async(files) => {
@@ -367,7 +355,13 @@ router.get('/year/rows/count/:id', async(req, res)=>{
 
           await Promise.all(files.map(async (file) => {
             console.log('file ', file)
-            const filePath = `${process.env.SOURCE_FOLDER}/${centername}/${process.env.SUB_SOURCE_FOLDER}/${directory}/${subdir}/${file}`
+            /***
+            * if directory === 'mariages' and sudir === 'declarations', 
+            * change subdir to "Publication" which is a subdir of mariage folder.
+            **/
+            const filePath = (directory === 'mariages' && subdir === 'declarations')?
+            `${process.env.SOURCE_FOLDER}/${centername}/${process.env.SUB_SOURCE_FOLDER}/${directory}/publications/${file}`:
+            `${process.env.SOURCE_FOLDER}/${centername}/${process.env.SUB_SOURCE_FOLDER}/${directory}/${subdir}/${file}`
             console.log('filePath ', filePath)
     
             try {
@@ -388,7 +382,9 @@ router.get('/year/rows/count/:id', async(req, res)=>{
                   readStream.on('error', reject);
                 });
     
-                console.log('totalRows ', totalRows)
+                
+                // console.log("----year---- ", directory, " __ ", centername, " __ ", period )
+                // console.log('totalRow ', totalRows)
               
                 
             } catch (error) {
@@ -422,8 +418,11 @@ router.get('/year/rows/count/:id', async(req, res)=>{
         }else if(directory === 'deces'){
           deces = [ M1T, M2T, M3T, M4T, M5T, M6T, M7T, M8T, M9T, M10T, M11T, M12T]
           console.log('deces ', deces)
-
+        }else if(directory === 'mariages'){
+          mariages = [ M1T, M2T, M3T, M4T, M5T, M6T, M7T, M8T, M9T, M10T, M11T, M12T]
+          console.log('mariages ', mariages)
         }
+
 
       })
     );
@@ -431,7 +430,8 @@ router.get('/year/rows/count/:id', async(req, res)=>{
     // Send response
     res.json({
       naissance,
-      deces
+      deces,
+      mariages
     }
     );
   } catch (error) {
@@ -446,28 +446,39 @@ router.get('/week/rows/count/all/:id', async(req, res)=>{
   const [subdir, period] = req.params.id.split('-');
 
   try {
-    const dir = ['naissances', 'deces'];
+    const dir = ['naissances', 'deces', 'mariages'];
     let naissance = []
     let deces = []
-    let W1 = [];
-    let W2 = [];
-    let W3 = [];
-    let W4 = [];
-    let W1Total = 0;
-    let W2Total = 0;
-    let W3Total = 0;
-    let W4Total = 0;
+    let mariages = []
+   
 
     const results = await Promise.all(
       dir.map(async (directory) => {
 
+        
+        let W1 = [];
+        let W2 = [];
+        let W3 = [];
+        let W4 = [];
+        let W1Total = 0;
+        let W2Total = 0;
+        let W3Total = 0;
+        let W4Total = 0;
+
         //read centre codes
-        const codes = await fs.promises.readdir(process.env.SOURCE_FOLDER);
+        let codes = await fs.promises.readdir(process.env.SOURCE_FOLDER);
+        codes = codes.filter(item => item !== 'digit');
 
         await Promise.all(
           codes.map(async(code)=>{
               // Read directory contents
-              const files = await fs.promises.readdir(`${process.env.SOURCE_FOLDER}/${code}/${process.env.SUB_SOURCE_FOLDER}/${directory}/${subdir}`);
+               /***
+                * if directory === 'mariages' and sudir === 'declarations', 
+                * change subdir to "Publication" which is a subdir of mariage folder.
+              **/
+              const files = (directory === 'mariages' && subdir === 'declarations')?
+                await fs.promises.readdir(`${process.env.SOURCE_FOLDER}/${code}/${process.env.SUB_SOURCE_FOLDER}/${directory}/publications`):
+                await fs.promises.readdir(`${process.env.SOURCE_FOLDER}/${code}/${process.env.SUB_SOURCE_FOLDER}/${directory}/${subdir}`)
 
               // Filter files by timeframe
               const filteredMonthFiles = files.filter((file) => {
@@ -475,6 +486,7 @@ router.get('/week/rows/count/all/:id', async(req, res)=>{
                 const creationDate = moment(formattedFile.slice(-12, -4), 'YYYYMMDD');
                 return help.filterByTimeframe(period, creationDate);
               });
+
 
               // Filter files by center name (if applicable)
               const matchingFiles = filteredMonthFiles.filter((file) => file.startsWith(code));
@@ -502,7 +514,13 @@ router.get('/week/rows/count/all/:id', async(req, res)=>{
 
                 await Promise.all(files.map(async (file) => {
                   console.log('file ', file)
-                  const filePath = `${process.env.SOURCE_FOLDER}/${code}/${process.env.SUB_SOURCE_FOLDER}/${directory}/${subdir}/${file}`
+                  /***
+                    * if directory === 'mariages' and sudir === 'declarations', 
+                    * change subdir to "Publication" which is a subdir of mariage folder.
+                  **/
+                  const filePath = (directory === 'mariages' && subdir === 'declarations')?
+                  `${process.env.SOURCE_FOLDER}/${code}/${process.env.SUB_SOURCE_FOLDER}/${directory}/publications/${file}`:
+                  `${process.env.SOURCE_FOLDER}/${code}/${process.env.SUB_SOURCE_FOLDER}/${directory}/${subdir}/${file}`
                   console.log('filePath ', filePath)
           
                   try {
@@ -551,6 +569,9 @@ router.get('/week/rows/count/all/:id', async(req, res)=>{
         }else if(directory === 'deces'){
           deces = [W1Total, W2Total, W3Total, W4Total]
           console.log('deces ', deces)
+        }else if(directory === 'mariage'){
+          mariages = [W1Total, W2Total, W3Total, W4Total]
+          console.log('mariage ', mariage)
 
         }
 
@@ -560,7 +581,8 @@ router.get('/week/rows/count/all/:id', async(req, res)=>{
     // Send response
     res.json({
       naissance,
-      deces
+      deces,
+      mariages
     }
     );
   } catch (error) {
@@ -576,23 +598,31 @@ router.get('/rows/count/:id', async (req, res) => {
   const [subdir, centername, period] = req.params.id.split('-');
 
   try {
-    const dir = ['naissances', 'deces'];
+    const dir = ['naissances', 'deces', 'mariages'];
     let naissance = []
     let deces = []
-    let W1 = [];
-    let W2 = [];
-    let W3 = [];
-    let W4 = [];
-    let W1Total = 0;
-    let W2Total = 0;
-    let W3Total = 0;
-    let W4Total = 0;
+    let mariages = []
 
     const results = await Promise.all(
       dir.map(async (directory) => {
+ 
+        let W1 = [];
+        let W2 = [];
+        let W3 = [];
+        let W4 = [];
+        let W1Total = 0;
+        let W2Total = 0;
+        let W3Total = 0;
+        let W4Total = 0;
+
         // Read directory contents
-        
-        const files = await fs.promises.readdir(`${process.env.SOURCE_FOLDER}/${centername}/${process.env.SUB_SOURCE_FOLDER}/${directory}/${subdir}`);
+         /***
+         * if directory === 'mariages' and sudir === 'declarations', 
+         * change subdir to "Publication" which is a subdir of mariage folder.
+        **/
+        const files = (directory === 'mariages' && subdir === 'declarations')?
+            await fs.promises.readdir(`${process.env.SOURCE_FOLDER}/${centername}/${process.env.SUB_SOURCE_FOLDER}/${directory}/publications`):
+            await fs.promises.readdir(`${process.env.SOURCE_FOLDER}/${centername}/${process.env.SUB_SOURCE_FOLDER}/${directory}/${subdir}`)
 
         // Filter files by timeframe
         const filteredMonthFiles = files.filter((file) => {
@@ -603,8 +633,6 @@ router.get('/rows/count/:id', async (req, res) => {
 
         // Filter files by center name (if applicable)
         const matchingFiles = filteredMonthFiles.filter((file) => file.startsWith(centername));
-
-
 
         // Filter and group files
         matchingFiles.forEach((file) => {
@@ -621,8 +649,6 @@ router.get('/rows/count/:id', async (req, res) => {
         });
 
 
-
-        
         // Count rows in each CSV file
         const countRows = async(files) => {
 
@@ -630,7 +656,13 @@ router.get('/rows/count/:id', async (req, res) => {
 
           await Promise.all(files.map(async (file) => {
             console.log('file ', file)
-            const filePath = `${process.env.FOLDER_PATH}/${directory}/${subdir}/${file}`;
+            /***
+             * if directory === 'mariages' and sudir === 'declarations', 
+             * change subdir to "Publication" which is a subdir of mariage folder.
+            **/
+            const filePath = (directory === 'mariages' && subdir === 'declarations')?
+            `${process.env.SOURCE_FOLDER}/${centername}/${process.env.SUB_SOURCE_FOLDER}/${directory}/publications/${file}`:
+            `${process.env.SOURCE_FOLDER}/${centername}/${process.env.SUB_SOURCE_FOLDER}/${directory}/${subdir}/${file}`
             console.log('filePath ', filePath)
     
             try {
@@ -677,7 +709,9 @@ router.get('/rows/count/:id', async (req, res) => {
         }else if(directory === 'deces'){
           deces = [W1Total, W2Total, W3Total, W4Total]
           console.log('deces ', deces)
-
+        }else if(directory === 'mariages'){
+          mariages = [W1Total, W2Total, W3Total, W4Total]
+          console.log('mariages ', mariages)
         }
 
       })
@@ -686,7 +720,8 @@ router.get('/rows/count/:id', async (req, res) => {
     // Send response
     res.json({
       naissance,
-      deces
+      deces,
+      mariages
     }
     );
   } catch (error) {
@@ -702,15 +737,26 @@ router.get('/week/rows/count/:id', async (req, res) => {
   const [subdir, centername, period] = req.params.id.split('-');
 
   try {
-    const dir = ['naissances', 'deces'];
-    let naissance = []
-    let deces = []
+    const dir = ['naissances', 'deces', 'mariages'];
+
 
 
     const results = await Promise.all(
       dir.map(async (directory) => {
+        let naissance = []
+        let deces = []
+        let mariages = []
+
+        
         // Read directory contents
-        const files = await fs.promises.readdir(`${process.env.SOURCE_FOLDER}/${centername}/${process.env.SUB_SOURCE_FOLDER}/${directory}/${subdir}`);
+        /***
+         * if directory === 'mariages' and sudir === 'declarations', 
+         * change subdir to "Publication" which is a subdir of mariage folder.
+        **/
+        const files = (directory === 'mariages' && subdir === 'declarations')?
+            await fs.promises.readdir(`${process.env.SOURCE_FOLDER}/${centername}/${process.env.SUB_SOURCE_FOLDER}/${directory}/publications`):
+            await fs.promises.readdir(`${process.env.SOURCE_FOLDER}/${centername}/${process.env.SUB_SOURCE_FOLDER}/${directory}/${subdir}`)
+
 
         // Filter files by timeframe
         const filteredMonthFiles = files.filter((file) => {
@@ -741,7 +787,13 @@ router.get('/week/rows/count/:id', async (req, res) => {
             let totalRows = 0;
           
             console.log('file ', file)
-            const filePath = `${process.env.FOLDER_PATH}/${directory}/${subdir}/${file}`;
+            /***
+             * if directory === 'mariages' and sudir === 'declarations', 
+             * change subdir to "Publication" which is a subdir of mariage folder.
+            **/
+            const filePath = (directory === 'mariages' && subdir === 'declarations')?
+            `${process.env.SOURCE_FOLDER}/${code}/${process.env.SUB_SOURCE_FOLDER}/${directory}/publications/${file}`:
+            `${process.env.SOURCE_FOLDER}/${code}/${process.env.SUB_SOURCE_FOLDER}/${directory}/${subdir}/${file}`
             console.log('filePath ', filePath)
     
             try {
@@ -789,6 +841,9 @@ router.get('/week/rows/count/:id', async (req, res) => {
         }else if(directory === 'deces'){
           deces = dayCount
           console.log('deces ', deces)
+        }else if(directory === 'mariages'){
+          mariages = dayCount
+          console.log('mariage ', mariages)
         }
 
       })
@@ -797,7 +852,8 @@ router.get('/week/rows/count/:id', async (req, res) => {
     // Send response
     res.json({
       naissance,
-      deces
+      deces,
+      mariage
     }
     );
   } catch (error) {
@@ -814,45 +870,70 @@ router.get('/stats/:id', async(req, res)=>{
   
     try {
   
-        //split params to get subdir, centrename, period
-      const [subdir, centername, period] = id.split('-');
-      const dir = ['naissances', 'deces']
+      //split params to get subdir, centrename, period
+      let [subdir, centername, period] = id.split('-');
+      const dir = ['naissances', 'deces', 'mariages']
   
-      let naissanceCount = {male: 0, female: 0}
-      let mariageCount = {monogamy: 0, polygamy: 0}
-      let deceCount = {total: 0}
+      let naissanceCount = {male: 0, female: 0, none: 0}
+      let deceCount = {male: 0, female: 0, none: 0}
+      let mariageCount = {total: 0}
       let recordCount = []
-    
+
+      
       const results = await Promise.all(
         dir.map(async(directory) =>{
-          // Read directory contents
-          const files = await fs.promises.readdir(`${process.env.SOURCE_FOLDER}/${centername}/${process.env.SUB_SOURCE_FOLDER}/${directory}/${subdir}`);
+          /***
+           * Read directory contents
+           * if directory === 'mariages' and sudir === 'declarations', 
+           * change subdir to "Publication" which is a subdir of mariage folder.
+          **/
+          const files = (directory === 'mariages' && subdir === 'declarations')?
+            await fs.promises.readdir(`${process.env.SOURCE_FOLDER}/${centername}/${process.env.SUB_SOURCE_FOLDER}/${directory}/publications`):
+            await fs.promises.readdir(`${process.env.SOURCE_FOLDER}/${centername}/${process.env.SUB_SOURCE_FOLDER}/${directory}/${subdir}`)
+          
   
-  
-          // Filter files by timeframe
+          // Filter files by timeframe using the date part of the file names
           const filteredFiles = files.filter(file => {
-            let formatedFile = help.reformatFilename(file)
-            const creationDate = moment(formatedFile.slice(-12, -4), 'YYYYMMDD');
-            return help.filterByTimeframe(period, creationDate);
+
+            let formattedFile = help.reformatFilename(file);
+            const creationDate = moment(formattedFile.slice(-12, -4), 'YYYYMMDD');
+
+            //verify if period is a 'time period' || a 'date formate'
+            var valid = help.isNumeric(period)
+            if(valid === false){
+              return help.filterByTimeframe(period, creationDate);
+            }else{
+              var formatedDate = formattedFile.slice(-12, -4)
+              return (formatedDate === period)? true : false
+            }
+
           });
     
           // Filter files by center name (if applicable)
           const matchingFiles = filteredFiles.filter(file => file.startsWith(centername));
     
-  
-          // Process matching files
-          const results = await Promise.all(matchingFiles.map(async (file, i) => {
-            console.log('dir ----', directory)
-  
-            const filePath = `${process.env.FOLDER_PATH}/${directory}/${subdir}/${file}`;
-            const data = await help.processedFile(filePath, directory, deceCount, mariageCount, naissanceCount, recordCount);
-            return data;
-          }));
-  
     
+          // Process matching files
+          const results = await Promise.all(matchingFiles.map(async (file, i) => {            
+            /***
+             * if directory === 'mariages' and sudir === 'declarations', 
+             * change subdir to "Publication" which is a subdir of mariage folder.
+            **/
+            const filePath = (directory === 'mariages' && subdir === 'declarations')?
+            `${process.env.SOURCE_FOLDER}/${centername}/${process.env.SUB_SOURCE_FOLDER}/${directory}/publications/${file}`:
+            `${process.env.SOURCE_FOLDER}/${centername}/${process.env.SUB_SOURCE_FOLDER}/${directory}/${subdir}/${file}`
+
+            return await help.processedFile(filePath, directory, subdir, deceCount, mariageCount, naissanceCount, recordCount);
+
+          }));
         })
       )
       
+      console.log('Stats_____ ', 
+        naissanceCount,
+        mariageCount,
+        deceCount
+    )
     
         // Send response
         res.json({
@@ -893,23 +974,35 @@ router.get('/stats/all/:id', async(req, res)=>{
             codes.map(async(code)=>{
               // Read directory contents
               const files = await fs.promises.readdir(`${process.env.SOURCE_FOLDER}/${code}/${process.env.SUB_SOURCE_FOLDER}/${directory}/${subdir}`);
-              console.log('files all ', files)
+              console.log('stats - files all ', files)
 
 
               // Filter files by timeframe
               const filteredFiles = files.filter(file => {
-                let formatedFile = help.reformatFilename(file)
-                const creationDate = moment(formatedFile.slice(-12, -4), 'YYYYMMDD');
-                return help.filterByTimeframe(period, creationDate);
+                let formattedFile = help.reformatFilename(file);
+                const creationDate = moment(formattedFile.slice(-12, -4), 'YYYYMMDD');
+    
+                var valid = help.isNumeric(period)
+                console.log('________valid_________', valid)
+                if(valid === false){
+                  return help.filterByTimeframe(period, creationDate);
+                }else{
+                  var formatedDate = formattedFile.slice(-12, -4)
+                  return (formatedDate === period)? true : false
+                  
+                }
               });
-        
+
+
+              // Filter files by center name (if applicable)
+              const matchingFiles = filteredFiles.filter(file => file.startsWith(code));      
               
-              console.log('dir0 ----', directory)
+              
               // Process matching files
-              const results = await Promise.all(filteredFiles.map(async (file, i) => {
+              const results = await Promise.all(matchingFiles.map(async (file, i) => {
                 console.log('dir ----', directory)
-                 const filePath = `${process.env.SOURCE_FOLDER}/${code}/${process.env.SUB_SOURCE_FOLDER}/${directory}/${subdir}/${file}`
-                const data = await help.processedFile(filePath, directory, deceCount, mariageCount, naissanceCount, recordCount);
+                const filePath = `${process.env.SOURCE_FOLDER}/${code}/${process.env.SUB_SOURCE_FOLDER}/${directory}/${subdir}/${file}`
+                const data = await help.processedFile(filePath, directory, subdir, deceCount, mariageCount, naissanceCount, recordCount);
                 return data;
               }));
             })
@@ -946,5 +1039,73 @@ router.get('/folders/all', async(req, res)=>{
 })
 
 
+//get performance data from .csv
+router.get('/performance/:period', async(req, res)=>{
+  const period = req.params.period
+
+  console.log(period)
+  let data = [];
+
+
+  try {
+    let filePath;
+    switch (period) {
+      case 'thisYear':
+        filePath = '../File_server/performance_year.csv';
+        break;
+      case 'thisMonth':
+        filePath = '../File_server/performance_month.csv';
+        break;
+      case 'thisWeek':
+        filePath = '../File_server/performance_week.csv';
+        break;
+      default:
+        throw new Error('Invalid period');
+    }
+
+
+    await new Promise((resolve, reject) => {
+      fs.createReadStream(filePath)
+      .pipe(csv({ separator: '#' }))
+      .on('data', (row) => {
+          data.push(row)
+      })
+      .on('end', () => {
+        resolve();
+    })
+    .on('error', reject);
+    })
+
+    data.sort((a, b) => {
+      const sumA = parseInt(a.actes) + parseInt(a.decla);
+      const sumB = parseInt(b.actes) + parseInt(b.decla);
+      return sumB - sumA;
+    })
+    data = data.slice(0,10)
+
+    
+    res.status(200).json(data)
+
+  } catch (error) {
+    console.log(error)
+    res.status(500).json({error})
+  }
+
+
+})
+
+
+router.get('/warning', async(req, res)=>{
+  try {
+    const warningData = await help.getWarning()
+
+    console.log('warningData ---> ', warningData)
+    res.status(200).json(warningData)
+
+  } catch (error) {
+    console.log(error)
+    res.status(500).json(error)
+  }
+})
 
 module.exports = router
